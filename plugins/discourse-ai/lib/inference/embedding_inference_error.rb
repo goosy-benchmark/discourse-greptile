@@ -65,10 +65,6 @@ module DiscourseAi
         RETRYABLE_CATEGORIES.include?(category)
       end
 
-      def rate_limited?
-        category == :rate_limited
-      end
-
       class << self
         private
 
