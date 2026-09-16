@@ -19,28 +19,24 @@ class ExportCsvController < ApplicationController
     end
 
     if entity == "user_archive"
-      archive_user_id = entity_id || current_user.id
       requesting_user_id = current_user.id if entity_id
 
       # Rate limit user archive exports to 1 per day
-      reservation_key = reserve_user_archive_export!(archive_user_id)
-
-      unless current_user.admin || reservation_key
+      unless current_user.admin ||
+               UserExport.where(
+                 user_id: entity_id || current_user.id,
+                 created_at: Time.zone.now.all_day,
+               ).count == 0
         render_json_error I18n.t("csv_export.rate_limit_error")
         return
       end
 
-      begin
-        Jobs.enqueue(
-          :export_user_archive,
-          user_id: archive_user_id,
-          requesting_user_id:,
-          args: export_params[:args],
-        )
-      rescue StandardError
-        Discourse.redis.del(reservation_key) if reservation_key
-        raise
-      end
+      Jobs.enqueue(
+        :export_user_archive,
+        user_id: entity_id || current_user.id,
+        requesting_user_id:,
+        args: export_params[:args],
+      )
     else
       Jobs.enqueue(
         :export_csv_file,
@@ -69,24 +65,6 @@ class ExportCsvController < ApplicationController
   end
 
   private
-
-  def reserve_user_archive_export!(user_id)
-    return nil if UserExport.exists?(user_id: user_id, created_at: Time.zone.now.all_day)
-
-    key = user_archive_export_rate_limit_key(user_id)
-    return nil unless Discourse.redis.set(key, "1", nx: true, ex: seconds_until_tomorrow)
-
-    key
-  end
-
-  def user_archive_export_rate_limit_key(user_id)
-    "user_archive_export_rate_limit:#{user_id}:#{Time.zone.today}"
-  end
-
-  def seconds_until_tomorrow
-    now = Time.zone.now
-    [(now.end_of_day - now).ceil, 1].max
-  end
 
   def export_params
     @_export_params ||=
