@@ -4,8 +4,6 @@ module Boards
   class Board < ActiveRecord::Base
     include ::AclTarget
 
-    ACL_PERMISSIONS = Acl::Permissions.new(:view, :edit, :manage)
-
     self.table_name = "discourse_kanban_boards"
     self.ignored_columns = %w[
       base_filter_query
@@ -41,30 +39,22 @@ module Boards
     before_validation :normalize_slug
 
     def self.mandatory_acl
-      [{ type: :group, id: Group::AUTO_GROUPS[:admins], permission: ACL_PERMISSIONS.manage }]
+      [{ type: :group, id: Group::AUTO_GROUPS[:admins], permission: "manage" }]
     end
 
     def self.banned_acl
       [
-        {
-          type: :group,
-          id: Group::AUTO_GROUPS[:anonymous_users],
-          permission: ACL_PERMISSIONS.manage,
-        },
-        {
-          type: :group,
-          id: Group::AUTO_GROUPS[:anonymous_users],
-          permission: ACL_PERMISSIONS.edit,
-        },
+        { type: :group, id: Group::AUTO_GROUPS[:anonymous_users], permission: "manage" },
+        { type: :group, id: Group::AUTO_GROUPS[:anonymous_users], permission: "edit" },
         # Essentially a legacy group ID, don't want anyone to use it.
-        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: ACL_PERMISSIONS.manage },
-        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: ACL_PERMISSIONS.edit },
-        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: ACL_PERMISSIONS.view },
+        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: "manage" },
+        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: "edit" },
+        { type: :group, id: Group::AUTO_GROUPS[:everyone], permission: "view" },
       ]
     end
 
     def self.loss_warning_permissions
-      [ACL_PERMISSIONS.manage]
+      ["manage"]
     end
 
     def archive_slug(date)
@@ -87,16 +77,13 @@ module Boards
     end
 
     def anonymous_can_read?
-      permission_acl.group_has_permission?(
-        Group::AUTO_GROUPS[:anonymous_users],
-        ACL_PERMISSIONS.view,
-      )
+      permission_acl.group_has_permission?(Group::AUTO_GROUPS[:anonymous_users], "view")
     end
 
     def logged_in_user_can_read?
       permission_acl.group_has_any_permission?(
         Group::AUTO_GROUPS[:logged_in_users],
-        ACL_PERMISSIONS.values,
+        %w[view edit manage],
       )
     end
 
